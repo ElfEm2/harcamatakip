@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Satış Takip Botu</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #000;  /* Siyah arka plan */
+      color: #fff;             /* Beyaz yazı */
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    #chat {
+      border: 1px solid #444;
+      background: #111;
+      border-radius: 8px;
+      padding: 10px;
+      flex-grow: 1;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      color: #eee;
+      font-size: 1rem;
+      white-space: pre-line; /* Raporun alt satıra geçmesi için */
+    }
+    #userInput {
+      width: calc(100% - 110px);
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: 1px solid #444;
+      background: #222;
+      color: #eee;
+      outline: none;
+    }
+    #userInput::placeholder {
+      color: #aaa;
+    }
+    #sendBtn {
+      width: 90px;
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: none;
+      background-color: #ff1493;
+      color: white;
+      cursor: pointer;
+      margin-left: 10px;
+      flex-shrink: 0;
+    }
+    .bot {
+      color: #ff69b4;
+      margin: 5px 0;
+    }
+    .user {
+      color: #ddd;
+      margin: 5px 0;
+      text-align: right;
+    }
+
+    /* Mobil uyumluluk için küçük dokunuş */
+    @media (max-width: 600px) {
+      #userInput {
+        width: 100%;
+        margin-bottom: 10px;
+      }
+      #sendBtn {
+        width: 100%;
+        margin-left: 0;
+      }
+      body {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Satış Takip Botu</h1>
+
+  <div id="chat"></div>
+  <div style="display:flex; flex-wrap: wrap;">
+    <input type="text" id="userInput" placeholder="Satış tutarını gir (TL) veya /rapor yaz" autocomplete="off" />
+    <button id="sendBtn">Gönder</button>
+  </div>
+
+  <script>
+    const chat = document.getElementById('chat');
+    const input = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const STORAGE_KEY = 'salesBotData';
+
+    function loadData() {
+      const data = localStorage.getItem(STORAGE_KEY);
+      return data ? JSON.parse(data) : [];
+    }
+
+    function saveData(data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    function addMessage(text, sender) {
+      const msg = document.createElement('div');
+      msg.className = sender;
+      msg.textContent = text;
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function handleUserInput(text) {
+      addMessage(text, 'user');
+
+      if (text.trim() === '/rapor') {
+        const data = loadData();
+        if (data.length === 0) {
+          addMessage('Henüz veri yok.', 'bot');
+          return;
+        }
+        let total = 0;
+        let report = 'Günlük Satış Raporu:\n';
+        data.forEach(entry => {
+          report += `${entry.date}: ${entry.amount.toFixed(2)} TL\n`;
+          total += entry.amount;
+        });
+        report += `Toplam: ${total.toFixed(2)} TL`;
+        addMessage(report, 'bot');
+        return;
+      }
+
+      const amount = parseFloat(text);
+      if (isNaN(amount) || amount <= 0) {
+        addMessage('Lütfen geçerli bir pozitif sayı girin veya /rapor yazın.', 'bot');
+        return;
+      }
+
+      const data = loadData();
+      const today = new Date().toISOString().slice(0,10);
+      const todayEntry = data.find(e => e.date === today);
+      if (todayEntry) {
+        todayEntry.amount += amount;
+      } else {
+        data.push({ date: today, amount: amount });
+      }
+      saveData(data);
+      addMessage(`Bugünkü satış tutarına ${amount.toFixed(2)} TL eklendi.`, 'bot');
+    }
+
+    sendBtn.addEventListener('click', () => {
+      const text = input.value;
+      if (!text.trim()) return;
+      handleUserInput(text);
+      input.value = '';
+      input.focus();
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        sendBtn.click();
+      }
+    });
+
+    // Hoş geldin mesajı
+    addMessage('Merhaba! Günlük satış tutarını yazabilir veya /rapor komutuyla raporu görebilirsin.', 'bot');
+  </script>
+
+</body>
+</html>
