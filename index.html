@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Harcama Kontrol Terminali</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #000;
+      color: #fff;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    #chat {
+      border: 1px solid #444;
+      background: #111;
+      border-radius: 8px;
+      padding: 10px;
+      flex-grow: 1;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      color: #eee;
+      font-size: 1rem;
+      white-space: pre-line;
+    }
+    #userInput {
+      width: calc(100% - 110px);
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: 1px solid #444;
+      background: #222;
+      color: #eee;
+      outline: none;
+    }
+    #userInput::placeholder {
+      color: #aaa;
+    }
+    #sendBtn {
+      width: 90px;
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: none;
+      background-color: #ff1493;
+      color: white;
+      cursor: pointer;
+      margin-left: 10px;
+      flex-shrink: 0;
+    }
+    .bot {
+      color: #ff69b4;
+      margin: 5px 0;
+    }
+    .user {
+      color: #ddd;
+      margin: 5px 0;
+      text-align: right;
+    }
+    @media (max-width: 600px) {
+      #userInput {
+        width: 100%;
+        margin-bottom: 10px;
+      }
+      #sendBtn {
+        width: 100%;
+        margin-left: 0;
+      }
+      body {
+        padding: 10px;
+      }
+    }
+    #signature {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      font-weight: bold;
+      font-size: 1rem;
+      font-family: 'Courier New', monospace;
+      animation: rainbow 5s linear infinite;
+      user-select: none;
+      pointer-events: none;
+      z-index: 1000;
+    }
+    @keyframes rainbow {
+      0% { color: red; }
+      16% { color: orange; }
+      33% { color: yellow; }
+      50% { color: green; }
+      66% { color: blue; }
+      83% { color: indigo; }
+      100% { color: violet; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Harcama Kontrol Terminali</h1>
+
+  <div id="chat"></div>
+  <div style="display:flex; flex-wrap: wrap;">
+    <input type="text" id="userInput" placeholder="Harcamayı gir (TL) veya /rapor, /ay sonu, /sıfırla yaz" autocomplete="off" />
+    <button id="sendBtn">Gönder</button>
+  </div>
+
+  <script>
+    const chat = document.getElementById('chat');
+    const input = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const STORAGE_KEY = 'salesBotData';
+
+    function loadData() {
+      const data = localStorage.getItem(STORAGE_KEY);
+      return data ? JSON.parse(data) : [];
+    }
+
+    function saveData(data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    function addMessage(text, sender) {
+      const msg = document.createElement('div');
+      msg.className = sender;
+      msg.textContent = text;
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function handleUserInput(text) {
+      addMessage(text, 'user');
+
+      if (text.trim() === '/sıfırla') {
+        localStorage.removeItem(STORAGE_KEY);
+        addMessage('Tüm harcamalar sıfırlandı.', 'bot');
+        return;
+      }
+
+      if (text.trim() === '/rapor') {
+        const data = loadData();
+        if (data.length === 0) {
+          addMessage('Henüz veri yok.', 'bot');
+          return;
+        }
+        let total = 0;
+        let report = 'Günlük Harcama Raporu:\n';
+        data.forEach(entry => {
+          report += `${entry.date}: ${entry.amount.toFixed(2)} TL\n`;
+          total += entry.amount;
+        });
+        report += `Toplam: ${total.toFixed(2)} TL`;
+        addMessage(report, 'bot');
+        return;
+      }
+
+      if (text.trim() === '/ay sonu') {
+        const data = loadData();
+        if (data.length === 0) {
+          addMessage('Henüz veri yok.', 'bot');
+          return;
+        }
+        const today = new Date();
+        const yil = today.getFullYear();
+        const ay = today.getMonth(); // 0-11
+        const ayBaslangici = new Date(yil, ay, 1).toISOString().slice(0,10);
+        const aySonuGunu = new Date(yil, ay + 1, 0).getDate();
+
+        const ayVerileri = data.filter(entry => {
+          return entry.date >= ayBaslangici && entry.date <= new Date(yil, ay, aySonuGunu).toISOString().slice(0,10);
+        });
+
+        let total = 0;
+        let report = `${yil} ${ay + 1}. ay harcama raporu:\n`;
+        for(let gun=1; gun<=aySonuGunu; gun++) {
+          const gunStr = `${yil}-${String(ay + 1).padStart(2,'0')}-${String(gun).padStart(2,'0')}`;
+          const gunVerisi = ayVerileri.find(e => e.date === gunStr);
+          const tutar = gunVerisi ? gunVerisi.amount : 0;
+          report += `${gun}. gün: ${tutar.toFixed(2)} TL\n`;
+          total += tutar;
+        }
+        report += `Toplam: ${total.toFixed(2)} TL`;
+        addMessage(report, 'bot');
+        return;
+      }
+
+      const amount = parseFloat(text);
+      if (isNaN(amount) || amount <= 0) {
+        addMessage('Lütfen geçerli bir pozitif sayı girin veya /rapor, /ay sonu, /sıfırla yazın.', 'bot');
+        return;
+      }
+
+      const data = loadData();
+      const today = new Date().toISOString().slice(0,10);
+      const todayEntry = data.find(e => e.date === today);
+      if (todayEntry) {
+        todayEntry.amount += amount;
+      } else {
+        data.push({ date: today, amount: amount });
+      }
+      saveData(data);
+      addMessage(`Bugünkü harcamaya ${amount.toFixed(2)} TL eklendi.`, 'bot');
+    }
+
+    sendBtn.addEventListener('click', () => {
+      const text = input.value;
+      if (!text.trim()) return;
+      handleUserInput(text);
+      input.value = '';
+      input.focus();
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        sendBtn.click();
+      }
+    });
+
+    addMessage('Merhaba! Günlük harcamanı yazabilir veya /rapor, /ay sonu, /sıfırla komutlarıyla raporu görebilirsin.', 'bot');
+  </script>
+
+  <div id="signature">By Emre</div>
+
+</body>
+</html>
